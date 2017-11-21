@@ -1,0 +1,79 @@
+#!/usr/bin/perl
+
+# This is a script to assist in mounting an ironkey drive
+# Updated by Brad Frank - 13 Sep 2012
+# Updated by Brad Frank - 22 Feb 2017
+
+my $IRONKEY = "";
+my $IK_EXE = "";
+
+# begin menu loop
+my $menuChoice = 0;
+while ($menuChoice != 9) { 
+	#print menu and prompt for input
+	print "\n\nSelect one of the following: \n\n";
+	print "1) Unlock IronKey\n";
+	print "5) Lock IronKey\n";
+	print "9) Quit.\n\n";
+	print "> ";
+	
+	$menuChoice = <>;
+
+	if ($menuChoice == 1) {
+		getIronKeyScript();
+		mountIronKey();
+	} elsif ($menuChoice == 5) {
+		getIronKeyScript();
+		umountIronKey();
+	} elsif ($menuChoice == 9) {
+		print "\nGoodbye.\n";
+	} else {
+		print "Invalid selection.";
+	}
+}
+
+# gets IronKey executable
+sub getIronKeyScript() {
+	# gets mount point for unencrypted IronKey partition (and removes newlines)
+	$IRONKEY = qx{ findmnt -S LABEL="IRONKEY" -o TARGET | awk \'FNR==2{print \$0}\'};
+	$IRONKEY =~ s/\R//g;
+
+	# check if old version IronKey
+	if ($IRONKEY eq "") {
+		$IRONKEY = qx{ findmnt -S LABEL="IronKey" -o TARGET | awk \'FNR==2{print \$0}\'};
+		$IRONKEY =~ s/\R//g;
+
+		if (-e $IRONKEY . "/linux/ironkey") {
+			print "\nDetected old style IronKey.\n";
+			$IK_EXE = $IRONKEY . "/linux/ironkey";
+		} else {
+			print "\nUnknown IronKey detected. Ask an administrator.\n";
+		}
+	# not old version, assume new version
+	} else {
+		if (-e $IRONKEY . "/linux/ironkey.exe") {
+			print "\nDetected new style IronKey.\n";
+			$IK_EXE = $IRONKEY . "/linux/ironkey.exe";
+		} else {
+			print "\nUnknown IronKey detected. Ask an administrator.\n";
+		}
+	}
+}
+
+# mounts and unlocks the ironkey utility partition
+sub mountIronKey() {
+	system "$IK_EXE 2> /dev/null";
+}
+
+# locks and unmounts IronKey encrypted partition
+sub umountIronKey() {
+	# gets mount point for encrypted IronKey partition (and removes newlines)
+	$IMATION_USB = qx{ findmnt -S LABEL="Imation USB" -o TARGET | awk \'FNR==2{print \$0}\'};
+	$IMATION_USB =~ s/\R//g;
+
+	# lock IronKey
+	system "$IK_EXE --lock";
+	# unmount directories
+	if ($IMATION_USB ne "") { system "umount '$IMATION_USB'"; }
+	if ($IRONKEY ne "") { system "umount $IRONKEY"; }
+}
